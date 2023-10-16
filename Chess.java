@@ -25,7 +25,7 @@ public class Chess implements AbstractStrategyGame {
     ));
     // Array to let Color be iterable
     private final Piece.Color[] C = {Piece.Color.WHITE, Piece.Color.BLACK};
-    private static Square[][] board;
+    private Board board;
     // Map<"Piece Name", Map<Color, ArrayList<Piece>>>
     private Map<String, Map<Piece.Color, ArrayList<Piece>>> pieces;
     // Log of moves to print once the game is over
@@ -44,12 +44,7 @@ public class Chess implements AbstractStrategyGame {
      * @param FEN (Forsyth-Edwards Notation) input
      */
     public Chess(String FEN) {
-        board = new Square[8][8];
-        for(int i = 0; i < 8; i++) {
-            for(int j = 0; j < 8; j++) {
-                board[i][j] = new Square((char)('a' + j), 8 - i);
-            }
-        }
+        board = new Board();
         pieces = new HashMap<>();
         log = "";
         draw = 0;
@@ -85,7 +80,7 @@ public class Chess implements AbstractStrategyGame {
                     offset += Integer.parseInt(""+c) - 1;
                 } else {
                     // Find square
-                    Square sqr = Square.getSquare((char)('a' + i + offset), 8 - row);
+                    Square sqr = board.getSquare((char)('a' + i + offset), 8 - row);
                     Piece.Color clr = ('B' <= c && c <= 'R') ? C[0] : C[1];
                     c = Character.toUpperCase(c);
                     sqr.piece = constructPiece(ABBVS.get(""+c), clr, sqr);
@@ -108,7 +103,7 @@ public class Chess implements AbstractStrategyGame {
         }
         int fullMoves = Integer.parseInt(s[12]) - 1;
         moves = fullMoves * 2 + (s[8].equals("w") ? 0 : 1);
-        ep = Square.getSquare(s[10].equals("-") ? "z9" : s[10]);
+        ep = board.getSquare(s[10].equals("-") ? "z9" : s[10]);
         draw50 = Integer.parseInt(s[11]);
     }
 
@@ -168,7 +163,9 @@ public class Chess implements AbstractStrategyGame {
 
         // Handling special inputs
         if(input.equals("legal")) {
-            printAllLegalMoves(color);
+            for(String s : getAllLegalMoves(color)) {
+                System.out.println(s);
+            }
             finished = true;
             input = "";
             // Doesn't count as a move, just checking legal moves
@@ -256,22 +253,22 @@ public class Chess implements AbstractStrategyGame {
             } else {
                 throw new IllegalArgumentException("There are no more of those pieces");
             }
-            if(legal.containsKey(Square.getSquare(move))) {
+            if(legal.containsKey(board.getSquare(move))) {
                 // Move is legal
                 Piece piece = null;
-                if(legal.get(Square.getSquare(move)).size() == 1) {
+                if(legal.get(board.getSquare(move)).size() == 1) {
                     // Only one piece can get to this square
-                    piece = legal.get(Square.getSquare(move)).get(0);
+                    piece = legal.get(board.getSquare(move)).get(0);
                 } else {
                     // Unless wrong specifier, only one piece should apply
                     if(rankSpecifier > 0) {
-                        for(Piece p : legal.get(Square.getSquare(move))) {
+                        for(Piece p : legal.get(board.getSquare(move))) {
                             if(p.square.rank == rankSpecifier) {
                                 piece = p;
                             }
                         }
                     } else if(fileSpecifier > 0) {
-                        for(Piece p : legal.get(Square.getSquare(move))) {
+                        for(Piece p : legal.get(board.getSquare(move))) {
                             if(p.square.file == fileSpecifier) {
                                 piece = p;
                             }
@@ -286,21 +283,21 @@ public class Chess implements AbstractStrategyGame {
                 }
 
                 // Capturing
-                if(Square.getSquare(move).piece != null || Square.getSquare(move).equals(ep)) {
+                if(board.getSquare(move).piece != null || board.getSquare(move).equals(ep)) {
                     if(!capturing) {
                         throw new IllegalArgumentException("There's a piece there!");
                     }
                     ArrayList<Piece> remove = null;
-                    if(Square.getSquare(move).equals(ep)) {
-                        Square passed = Square.getSquare(move).relSquare(0,
+                    if(board.getSquare(move).equals(ep)) {
+                        Square passed = board.getSquare(move).relSquare(0,
                                 color.equals(Piece.Color.WHITE) ? -1 : 1);
                         remove = pieces.get(passed.piece.piece).get(Piece.oppColor(color));
                         remove.remove(passed.piece);
                         passed.piece = null;
                     } else {
-                        remove = pieces.get(Square.getSquare(move).piece.piece)
+                        remove = pieces.get(board.getSquare(move).piece.piece)
                                 .get(Piece.oppColor(color));
-                        remove.remove(Square.getSquare(move).piece);
+                        remove.remove(board.getSquare(move).piece);
                     }
                     draw50 = -1;
                 } else if(capturing) {
@@ -323,9 +320,9 @@ public class Chess implements AbstractStrategyGame {
                 }
 
                 // Movement
-                Square.getSquare(move).piece = piece;
-                Square.getSquare(piece.square.toString()).piece = null;
-                piece.square = Square.getSquare(move);
+                board.getSquare(move).piece = piece;
+                board.getSquare(piece.square.toString()).piece = null;
+                piece.square = board.getSquare(move);
                 boolean newEp = false;
 
                 // Special movement
@@ -416,11 +413,15 @@ public class Chess implements AbstractStrategyGame {
                     return true;
                 }
                 // Dead position
+                boolean hasPieces = false;
                 for(String type : pieces.keySet()) {
                     if(pieces.get(type).get(C[i]) == null ||
                             pieces.get(type).get(C[i]).size() > 0) {
-                        return false;
+                        hasPieces = true;
                     }
+                }
+                if(!hasPieces) {
+                    return true;
                 }
                 // TODO: Extend Dead Position draw rule
                 // TODO: Threefold repitition
@@ -444,7 +445,7 @@ public class Chess implements AbstractStrategyGame {
      */
     public String toString() {
         String out = "\n |‾‾‾‾‾|‾‾‾‾‾|‾‾‾‾‾|‾‾‾‾‾|‾‾‾‾‾|‾‾‾‾‾|‾‾‾‾‾|‾‾‾‾‾|\n";
-        for(Square[] rank : board) {
+        for(Square[] rank : board.board) {
             out += (rank[0].rank != 8 ?
                     " |     |     |     |     |     |     |     |     |\n" : "") +
                     rank[0].rank + "|";
@@ -737,18 +738,29 @@ public class Chess implements AbstractStrategyGame {
     }
 
     /**
-     * A helper method that will print every legal move for the specified color.
+     * A helper method that will return every legal move for the specified color.
      * @param color the Color to retrieve legal moves from
+     * @return The list of legal moves
      */
-    public void printAllLegalMoves(Piece.Color color) {
+    public List<String> getAllLegalMoves(Piece.Color color) {
+        List<String> moves = new ArrayList<>();
         for(String key : pieces.keySet()) {
             if(pieces.get(key) != null && pieces.get(key).get(color) != null) {
                 for(Piece p : pieces.get(key).get(color)) {
                     p.calcLegal();
-                    System.out.printf("%s@%s: %s\n", p, p.square, p.legalSquares);
+                    moves.add(String.format("%s@%s: %s", p, p.square, p.legalSquares));
                 }
             }
         }
+        return moves;
+    }
+
+    /**
+     * A helper method that returns the color of the current player.
+     * @return The color of the current player
+     */
+    public Piece.Color getCurrColor() {
+        return C[getNextPlayer() - 1];
     }
 
     /**
@@ -828,7 +840,7 @@ public class Chess implements AbstractStrategyGame {
      * @return true if the character is in range, false otherwise
      */
     private boolean charInRange(String str, int idx, char a, char b) {
-        if(str.length() < idx) {
+        if(str.length() > idx) {
             return a <= str.charAt(idx) && str.charAt(idx) <= b;
         }
         return false;
@@ -1093,7 +1105,7 @@ public class Chess implements AbstractStrategyGame {
         public boolean addIfCapturable(int fileOffset, int rankOffset, Color color) {
             char tFile = (char)(square.file + fileOffset);
             int tRank = square.rank + rankOffset;
-            if(Square.isLegal(tFile, tRank) &&
+            if(Board.isLegal(tFile, tRank) &&
                     (square.relSquare(fileOffset, rankOffset).piece != null ||
                     square.relSquare(fileOffset, rankOffset).equals(ep))) {
                 return addIfLegal(fileOffset, rankOffset);
@@ -1128,20 +1140,17 @@ public class Chess implements AbstractStrategyGame {
         public abstract void calcLegal();
     }
 
-    // A class to represent a square on the Chess board
-    private class Square {
-        private char file;
-        private int rank;
-        private Piece piece;
+    // A class to represent the Chess board
+    private class Board {
+        private Square[][] board;
 
-        /**
-         * Constructs a new Square.
-         * @param file The file (horizontal coordinate) of this square
-         * @param rank The rank (vertical coordinate) of this square
-         */
-        public Square(char file, int rank) {
-            this.file = file;
-            this.rank = rank;
+        public Board() {
+            board = new Square[8][8];
+            for(int i = 0; i < 8; i++) {
+                for(int j = 0; j < 8; j++) {
+                    board[i][j] = new Square(this, (char)('a' + j), 8 - i);
+                }
+            }
         }
 
         /**
@@ -1150,7 +1159,7 @@ public class Chess implements AbstractStrategyGame {
          * @param rank The rank of the square to retrieve
          * @return the Square if found, null otherwise
          */
-        public static Square getSquare(char file, int rank) {
+        public Square getSquare(char file, int rank) {
             if(isLegal(file, rank)) {
                 return board[8-rank][file-'a'];
             }
@@ -1162,8 +1171,37 @@ public class Chess implements AbstractStrategyGame {
          * @param in The coordinate of the square to retrieve
          * @return the Square if found, null otherwise
          */
-        public static Square getSquare(String in) {
+        public Square getSquare(String in) {
             return getSquare(in.charAt(0), Integer.parseInt(in.substring(1)));
+        }
+
+        /**
+         * A helper method to check if a coordinate is legal
+         * @param file The file to theck
+         * @param rank The rank to check
+         * @return true if the coordinate is legal
+         */
+        public static boolean isLegal(char file, int rank) {
+            return 'a' <= file && file <= 'h' && 1 <= rank && rank <= 8;
+        }
+    }
+
+    // A class to represent a square on the Chess board
+    private class Square {
+        private Board board;
+        private char file;
+        private int rank;
+        private Piece piece;
+
+        /**
+         * Constructs a new Square.
+         * @param file The file (horizontal coordinate) of this square
+         * @param rank The rank (vertical coordinate) of this square
+         */
+        public Square(Board board, char file, int rank) {
+            this.board = board;
+            this.file = file;
+            this.rank = rank;
         }
 
         /**
@@ -1175,17 +1213,7 @@ public class Chess implements AbstractStrategyGame {
         public Square relSquare(int fileOffset, int rankOffset) {
             char tFile = (char)(file + fileOffset);
             int tRank = rank + rankOffset;
-            return Square.getSquare(tFile, tRank);
-        }
-
-        /**
-         * A helper method to check if a coordinate is legal
-         * @param file The file to theck
-         * @param rank The rank to check
-         * @return true if the coordinate is legal
-         */
-        public static boolean isLegal(char file, int rank) {
-            return 'a' <= file && file <= 'h' && 1 <= rank && rank <= 8;
+            return board.getSquare(tFile, tRank);
         }
 
         /**

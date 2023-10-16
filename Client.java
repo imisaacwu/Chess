@@ -10,7 +10,7 @@ public class Client {
         String pre = "e4 e5 d4 d5 exd5 exd4 a3 Bc5 b4 Nf6";// Qe2";
         String FEN_STANDARD = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         String AverbakhVKotov = "r1bq1rk1/pp1nbppp/2pp1n2/4p3/2PPP3/2N2N2/PP2BPPP/R1BQ1RK1 w - - 0 8";
-        Chess game = new Chess("8/8/8/5K2/8/8/8/8 b Q - 49 1");
+        Chess game = new Chess();
 
         System.out.println(game.instructions());
         System.out.println();
